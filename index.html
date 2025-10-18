@@ -1,298 +1,129 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Fessions — Reflect (Word Cloud)</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fessions Word Cloud</title>
+  <style>
+    body {
+      background-color: #f8fafc;
+      font-family: 'Inter', sans-serif;
+      color: #111827;
+      text-align: center;
+      margin: 0;
+      padding: 2rem;
+    }
 
-<!-- Libraries -->
-<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/wordcloud2.js/1.2.0/wordcloud2.min.js"></script>
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 1rem;
+      color: #2563eb;
+    }
 
-<style>
-  :root{
-    --bg: #FAFAFA;
-    --card: #E9ECEF;
-    --text: #2B2D42;
-    --accent: #06D6A0;
-    --accent2: #EF476F;
-  }
-  html,body{height:100%;margin:0;font-family:Inter,Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text);}
-  .wrap{max-width:1100px;margin:28px auto;padding:18px;}
-  header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;}
-  h1{margin:0;font-size:22px}
-  .intro{color:#555;margin-top:6px;}
-  .layout{display:flex;gap:18px;align-items:flex-start;}
-  .cloudCard{flex:1;background:white;border-radius:12px;padding:18px;box-shadow:0 6px 18px rgba(0,0,0,0.06);}
-  #wordCloud{width:100%;height:520px;border-radius:8px;}
-  .side{width:300px;}
-  .adBox{background:linear-gradient(180deg,#fff,#f6f6f8);border-radius:10px;padding:12px;border:1px dashed #ddd;text-align:center;height:160px;}
-  .controls{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;}
-  button{background:var(--accent);color:white;border:0;padding:10px 14px;border-radius:10px;cursor:pointer;font-weight:600}
-  button.secondary{background:#fff;color:var(--accent);border:1px solid #e6e6e6}
-  /* modal */
-  .modal{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:none;align-items:center;justify-content:center;z-index:1000}
-  .modal .card{width:min(900px,95%);background:white;padding:18px;border-radius:12px;max-height:80vh;overflow:auto}
-  .post{padding:12px;border-radius:10px;background:var(--card);margin-bottom:10px;}
-  .meta{font-size:12px;color:#666;margin-bottom:8px;}
-  .navRow{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
-  .adLabel{font-size:12px;color:#666;margin-bottom:8px}
-  footer{margin-top:20px;color:#888;font-size:13px;text-align:center}
-  @media (max-width:900px){
-    .layout{flex-direction:column}
-    .side{width:100%}
-    #wordCloud{height:360px}
-  }
-</style>
+    #wordcloud {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 1rem;
+      min-height: 70vh;
+      border-radius: 1rem;
+      background: white;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.05);
+      transition: all 0.3s ease-in-out;
+    }
+
+    .word {
+      display: inline-block;
+      cursor: pointer;
+      transition: transform 0.2s ease, color 0.2s ease;
+      user-select: none;
+    }
+
+    .word:hover {
+      transform: scale(1.2);
+      color: #1e3a8a;
+    }
+
+    footer {
+      font-size: 0.9rem;
+      margin-top: 2rem;
+      color: #6b7280;
+    }
+
+    @media (max-width: 600px) {
+      h1 {
+        font-size: 1.5rem;
+      }
+    }
+  </style>
 </head>
 <body>
-  <div class="wrap">
-    <header>
-      <div>
-        <h1>Fessions — Reflect</h1>
-        <div class="intro">Explore what people are releasing. Click a word to step into a single post. One at a time.</div>
-      </div>
-      <div>
-        <small style="color:#666">Ad / Support placeholder</small>
-      </div>
-    </header>
 
-    <div class="layout">
-      <div class="cloudCard">
-        <div id="wordCloud"></div>
+  <h1>Fessions Word Cloud</h1>
+  <p>Explore the reflections and releases of others — anonymous and real.</p>
 
-        <div class="controls">
-          <button id="shuffleBtn" class="secondary">Random Word</button>
-          <button id="refreshBtn" class="secondary">Refresh Cloud</button>
-          <div style="flex:1"></div>
-          <div style="font-size:13px;color:#666;align-self:center">Auto refresh every <span id="intervalVal">90</span>s</div>
-        </div>
-      </div>
+  <div id="wordcloud">Loading thoughts...</div>
 
-      <div class="side">
-        <div class="adBox">
-          <div class="adLabel"><strong>Sponsored Reflection</strong></div>
-          <div style="font-size:14px;color:#444">Partner with Fessions — promote mindful tools and services.</div>
-          <div style="margin-top:10px"><button style="background:var(--accent2)">Partner</button></div>
-        </div>
+  <footer>
+    <p>Fessions — Release & Reflect</p>
+  </footer>
 
-        <div style="height:18px"></div>
+  <script>
+    // 🟢 Replace this placeholder with your published CSV link
+    const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSrNxHSKHvTW7SN6dBA0aRL2ekckHnWC2m4qp7WoOhrecea5E2l5crGJGrJxEBjRPTeSOMLSReNNmrv/pubhtml?gid=413092187&single=true";
 
-        <div class="adBox">
-          <div class="adLabel"><strong>Support Fessions</strong></div>
-          <div style="margin-top:8px">Keep the space safe and anonymous. Consider donating.</div>
-          <div style="margin-top:10px"><button style="background:#333">Donate</button></div>
-        </div>
-      </div>
-    </div>
+    async function loadCSV(url) {
+      try {
+        const response = await fetch(url);
+        const text = await response.text();
+        const rows = text.split("\n").slice(1);
+        const words = [];
 
-    <footer>All posts are anonymous. Some posts may be filtered for safety.</footer>
-  </div>
+        rows.forEach(row => {
+          const cols = row.split(",");
+          if (cols.length > 0) {
+            const content = cols[1] || cols[0]; // use 2nd column if available
+            if (content && content.trim().length > 0) {
+              words.push(content.trim());
+            }
+          }
+        });
 
-  <!-- Modal / Peek viewer -->
-  <div id="modal" class="modal" aria-hidden="true" role="dialog">
-    <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <div><strong>Posts containing <span id="modalWord"></span></strong></div>
-        <div><button id="closeModal" class="secondary">Close</button></div>
-      </div>
-      <div id="postsContainer" style="margin-top:12px"></div>
-      <div class="navRow">
-        <button id="prevPost" class="secondary">Prev</button>
-        <button id="nextPost" class="secondary">Next</button>
-        <button id="randomPost" class="secondary">Random</button>
-      </div>
-    </div>
-  </div>
+        if (words.length > 0) {
+          renderWordCloud(words);
+        } else {
+          document.getElementById("wordcloud").innerHTML = "<p>No data available yet.</p>";
+        }
+      } catch (err) {
+        console.error("Error loading CSV:", err);
+        document.getElementById("wordcloud").innerHTML = "<p>Failed to load data.</p>";
+      }
+    }
 
-<script>
-/* ====== CONFIG ====== */
-const CSV_URL = "https://docs.google.com/spreadsheets/d/1NCVibDOJDupoEXf7FudyA5S0Y8T2s7Wwl8zc9gwYkdg/edit?usp=sharing/edit?usp=sharing"; // <-- put your published CSV URL here
-const PUBLISHED_FIELD = "Published"; // header name that must equal OK
-const MESSAGE_FIELD = "Message";     // header for the post body
-const TITLE_FIELD = "Title";         // optional
-const MOOD_FIELD = "Mood";
-const TIMESTAMP_FIELD = "Timestamp"; // optional if present in sheet
-const AUTO_REFRESH_SECONDS = 90;
-const MIN_WORD_LENGTH = 3;
-const MAX_WORDS = 120;
+    function renderWordCloud(words) {
+      const container = document.getElementById("wordcloud");
+      container.innerHTML = "";
+      words.forEach(word => {
+        const el = document.createElement("span");
+        el.textContent = word;
+        el.className = "word";
+        el.style.fontSize = `${12 + Math.random() * 32}px`;
+        el.style.color = randomColor();
+        el.onclick = () => alert(`"${word}"`);
+        container.appendChild(el);
+      });
+    }
 
-/* ====== Stopwords (simple list) ====== */
-const STOPWORDS = new Set([
-  "the","and","for","that","this","with","have","just","about","your","you","are",
-  "but","not","was","they","from","what","when","like","just","their","them","it's",
-  "ive","i'm","i","me","my","we","our","or","a","an","in","on","of","to","be","as","at",
-  "so","if","by","is","it","has","had","do","does","did","will","would","can","could"
-]);
+    function randomColor() {
+      const colors = ["#2563eb", "#1d4ed8", "#60a5fa", "#3b82f6", "#1e40af", "#93c5fd"];
+      return colors[Math.floor(Math.random() * colors.length)];
+    }
 
-/* ====== State ====== */
-let posts = [];   // array of {Timestamp, Mood, Title, Message}
-let wordFreq = {}; // {word:count}
-let wordList = []; // [{text:size}...]
-let currentWord = null;
-let currentMatches = [];
-let currentIndex = 0;
-let refreshTimer = null;
+    // Load data
+    loadCSV(csvUrl);
+  </script>
 
-/* ====== Helpers ====== */
-function sanitizeWord(w){
-  return w.toLowerCase().replace(/[^a-z0-9']/g,'').trim();
-}
-function tokenize(text){
-  return text.split(/\s+/).map(sanitizeWord).filter(w => w.length>=MIN_WORD_LENGTH && !STOPWORDS.has(w));
-}
-
-/* ====== Fetch & Parse CSV ====== */
-async function loadData(){
-  try{
-    const res = await fetch(CSV_URL);
-    if(!res.ok) throw new Error("CSV fetch error: "+res.status);
-    const csv = await res.text();
-    const parsed = Papa.parse(csv, {header:true, skipEmptyLines:true});
-    posts = parsed.data
-      .filter(r => (r[PUBLISHED_FIELD]||"").toLowerCase()==="ok")
-      .map(r=>({
-        Timestamp: r[TIMESTAMP_FIELD] || "",
-        Mood: r[MOOD_FIELD] || "",
-        Title: r[TITLE_FIELD] || "",
-        Message: (r[MESSAGE_FIELD] || "").trim()
-      }))
-      .filter(p=>p.Message && p.Message.length>0);
-    buildWordFreq();
-  }catch(err){
-    console.error("loadData()", err);
-  }
-}
-
-/* ====== Build freq map ====== */
-function buildWordFreq(){
-  wordFreq = {};
-  posts.forEach(p=>{
-    const words = tokenize(p.Message);
-    words.forEach(w=>{
-      if(STOPWORDS.has(w)) return;
-      wordFreq[w] = (wordFreq[w]||0)+1;
-    });
-  });
-  // convert to array sorted by frequency
-  wordList = Object.keys(wordFreq).map(k=>({text:k, size:wordFreq[k]}))
-    .sort((a,b)=>b.size - a.size)
-    .slice(0, MAX_WORDS);
-  // normalize sizes (map counts to font sizes)
-  const max = wordList.length ? wordList[0].size : 1;
-  wordList = wordList.map(w=>{
-    const size = 12 + Math.round((w.size / max) * 60); // 12-72 px
-    return {text: w.text, size};
-  });
-  renderCloud();
-}
-
-/* ====== Render using wordcloud2.js ====== */
-function renderCloud(){
-  const elem = document.getElementById('wordCloud');
-  elem.innerHTML = ""; // clear
-  if(wordList.length===0){
-    elem.innerHTML = "<div style='padding:40px;color:#777;text-align:center'>No public posts available yet.</div>";
-    return;
-  }
-  const listForWC = wordList.map(w=>[w.text, w.size]);
-  WordCloud(elem, {
-    list: listForWC,
-    gridSize: Math.round(16 * elem.offsetWidth / 1024),
-    weightFactor: function (size) { return size; },
-    fontFamily: 'Poppins, Inter, Arial',
-    color: function(word,weight){
-      // color by weight randomly between the two accents
-      return (Math.random() > 0.8) ? 'var(--accent2)' : 'var(--accent)';
-    },
-    rotateRatio: 0.2,
-    rotationSteps: 2,
-    click: function(item){
-      if(!item) return;
-      const word = item[0];
-      openPeek(word);
-    },
-    hover: function(item,dimension,event){
-      // optional: show tooltip
-    },
-    drawOutOfBound: false,
-    shuffle: true
-  });
-}
-
-/* ====== Peek viewer functions ====== */
-function openPeek(word){
-  currentWord = word;
-  document.getElementById('modalWord').textContent = `"${word}"`;
-  // build matches
-  currentMatches = posts.filter(p => {
-    const txt = p.Message.toLowerCase();
-    return txt.indexOf(' '+word+' ') !== -1 || txt.startsWith(word+' ') || txt.endsWith(' '+word) || txt.split(/\W+/).includes(word);
-  });
-  if(currentMatches.length === 0){
-    // fallback to partial matches
-    currentMatches = posts.filter(p => p.Message.toLowerCase().includes(word));
-  }
-  currentIndex = 0;
-  renderPeek();
-  showModal();
-}
-function renderPeek(){
-  const container = document.getElementById('postsContainer');
-  container.innerHTML = "";
-  if(currentMatches.length===0){
-    container.innerHTML = "<div class='post'><div class='meta'>No posts found.</div></div>";
-    return;
-  }
-  const post = currentMatches[currentIndex];
-  const el = document.createElement('div'); el.className='post';
-  el.innerHTML = `<div class="meta">${post.Mood ? `${post.Mood} • ` : ''}${post.Timestamp || ''}</div>
-                  ${post.Title ? `<h3 style="margin:0 0 8px">${escapeHtml(post.Title)}</h3>` : ''}
-                  <div style="white-space:pre-wrap">${escapeHtml(post.Message)}</div>`;
-  container.appendChild(el);
-}
-function nextPost(){ if(currentMatches.length===0) return; currentIndex = (currentIndex+1) % currentMatches.length; renderPeek(); }
-function prevPost(){ if(currentMatches.length===0) return; currentIndex = (currentIndex-1+currentMatches.length) % currentMatches.length; renderPeek(); }
-function randomPost(){ if(currentMatches.length===0) return; currentIndex = Math.floor(Math.random()*currentMatches.length); renderPeek(); }
-function showModal(){ document.getElementById('modal').style.display='flex'; document.getElementById('modal').setAttribute('aria-hidden','false'); }
-function closeModal(){ document.getElementById('modal').style.display='none'; document.getElementById('modal').setAttribute('aria-hidden','true'); }
-
-/* ====== Utilities ====== */
-function escapeHtml(str){
-  if(!str) return '';
-  return str.replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[c]);
-}
-
-/* ====== Auto refresh and controls ====== */
-document.getElementById('refreshBtn').addEventListener('click', async ()=>{
-  await loadData();
-});
-document.getElementById('shuffleBtn').addEventListener('click', ()=>{
-  if(wordList.length===0) return;
-  const random = wordList[Math.floor(Math.random()*wordList.length)].text;
-  openPeek(random);
-});
-document.getElementById('nextPost').addEventListener('click', nextPost);
-document.getElementById('prevPost').addEventListener('click', prevPost);
-document.getElementById('randomPost').addEventListener('click', randomPost);
-document.getElementById('closeModal').addEventListener('click', closeModal);
-document.getElementById('modal').addEventListener('click', (e)=>{ if(e.target===document.getElementById('modal')) closeModal(); });
-
-async function start(){
-  await loadData();
-  // set interval
-  const iv = AUTO_REFRESH_SECONDS;
-  document.getElementById('intervalVal').textContent = iv;
-  refreshTimer = setInterval(()=>{ loadData(); }, iv*1000);
-  // accessibility: allow keyboard nav when modal open
-  document.addEventListener('keydown', (e)=>{
-    if(document.getElementById('modal').style.display !== 'flex') return;
-    if(e.key === 'ArrowRight') nextPost();
-    if(e.key === 'ArrowLeft') prevPost();
-    if(e.key === 'Escape') closeModal();
-  });
-}
-start();
-</script>
 </body>
 </html>
