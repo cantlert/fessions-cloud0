@@ -78,18 +78,37 @@
       try {
         const response = await fetch(url);
         const text = await response.text();
-        const rows = text.split("\n").slice(1);
-        const words = [];
+       function parseCSV(text) {
+  const rows = text.trim().split("\n").slice(1);
+  return rows.map(row => {
+    // Remove quotes and handle commas inside quotes
+    const clean = row.replace(/^"|"$/g, "").replace(/""/g, '"');
+    const parts = clean.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+    return parts.map(p => p.replace(/^"|"$/g, "").trim());
+  });
+}
 
-        rows.forEach(row => {
-          const cols = row.split(",");
-          if (cols.length > 0) {
-            const content = cols[1] || cols[0]; // use 2nd column if available
-            if (content && content.trim().length > 0) {
-              words.push(content.trim());
-            }
-          }
-        });
+async function loadCSV(url) {
+  try {
+    const response = await fetch(url);
+    const text = await response.text();
+    const data = parseCSV(text);
+
+    const words = data
+      .map(row => row[1] || row[0]) // adjust based on your sheet
+      .filter(Boolean)
+      .map(word => word.trim());
+
+    if (words.length > 0) {
+      renderWordCloud(words);
+    } else {
+      document.getElementById("wordcloud").innerHTML = "<p>No data available yet.</p>";
+    }
+  } catch (err) {
+    console.error("Error loading CSV:", err);
+    document.getElementById("wordcloud").innerHTML = "<p>Failed to load data.</p>";
+  }
+}
 
         if (words.length > 0) {
           renderWordCloud(words);
