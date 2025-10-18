@@ -107,7 +107,7 @@
 
 <script>
 /* ====== CONFIG ====== */
-const CSV_URL = "YOUR_CSV_URL_HERE"; // <-- put your published CSV URL here
+const CSV_URL = "https://docs.google.com/spreadsheets/d/1NCVibDOJDupoEXf7FudyA5S0Y8T2s7Wwl8zc9gwYkdg/edit?usp=sharing"; // <-- put your published CSV URL here
 const PUBLISHED_FIELD = "Published"; // header name that must equal OK
 const MESSAGE_FIELD = "Message";     // header for the post body
 const TITLE_FIELD = "Title";         // optional
