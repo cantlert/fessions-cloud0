@@ -4,145 +4,95 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Fessions Word Cloud</title>
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3-cloud@1/build/d3.layout.cloud.js"></script>
   <style>
     body {
-      background-color: #f8fafc;
-      font-family: 'Inter', sans-serif;
-      color: #111827;
-      text-align: center;
-      margin: 0;
-      padding: 2rem;
-    }
-
-    h1 {
-      font-size: 2rem;
-      margin-bottom: 1rem;
-      color: #2563eb;
-    }
-
-    #wordcloud {
+      font-family: 'Arial', sans-serif;
       display: flex;
-      flex-wrap: wrap;
       justify-content: center;
       align-items: center;
-      gap: 0.75rem;
-      padding: 1rem;
-      min-height: 70vh;
-      border-radius: 1rem;
-      background: white;
-      box-shadow: 0 4px 14px rgba(0,0,0,0.05);
-      transition: all 0.3s ease-in-out;
+      height: 100vh;
+      background-color: #fafafa;
+      margin: 0;
     }
-
-    .word {
-      display: inline-block;
-      cursor: pointer;
-      transition: transform 0.2s ease, color 0.2s ease;
-      user-select: none;
-    }
-
-    .word:hover {
-      transform: scale(1.2);
-      color: #1e3a8a;
-    }
-
-    footer {
-      font-size: 0.9rem;
-      margin-top: 2rem;
-      color: #6b7280;
-    }
-
-    @media (max-width: 600px) {
-      h1 {
-        font-size: 1.5rem;
-      }
+    #wordCloud {
+      width: 90vw;
+      height: 90vh;
     }
   </style>
 </head>
 <body>
-
-  <h1>Fessions Word Cloud</h1>
-  <p>Explore the reflections and releases of others — anonymous and real.</p>
-
-  <div id="wordcloud">Loading thoughts...</div>
-
-  <footer>
-    <p>Fessions — Release & Reflect</p>
-  </footer>
-
+  <div id="wordCloud"></div>
+  
   <script>
-    // 🟢 Replace this placeholder with your published CSV link
-    const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSrNxHSKHvTW7SN6dBA0aRL2ekckHnWC2m4qp7WoOhrecea5E2l5crGJGrJxEBjRPTeSOMLSReNNmrv/pub?gid=413092187&single=true&output=csv";
+    const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSrNxHSKHvTW7SN6dBA0aRL2ekckHnWC2m4qp7WoOhrecea5E2l5crGJGrJxEBjRPTeSOMLSReNNmrv/pub?gid=413092187&single=true&output=csv"; // published CSV link from Google Sheets
 
-    async function loadCSV(url) {
-      try {
-        const response = await fetch(url);
-        const text = await response.text();
-       function parseCSV(text) {
-  const rows = text.trim().split("\n").slice(1);
-  return rows.map(row => {
-    // Remove quotes and handle commas inside quotes
-    const clean = row.replace(/^"|"$/g, "").replace(/""/g, '"');
-    const parts = clean.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
-    return parts.map(p => p.replace(/^"|"$/g, "").trim());
-  });
-}
+    async function loadData() {
+      const response = await fetch(csvUrl);
+      const data = await response.text();
+      const rows = data.split("\n").slice(1); // skip header row
 
-async function loadCSV(url) {
-  try {
-    const response = await fetch(url);
-    const text = await response.text();
-    const data = parseCSV(text);
+      const words = rows
+        .map(row => {
+          const cols = row.split(",");
+          return cols[3]; // Message column
+        })
+        .filter(Boolean)
+        .join(" ")
+        .split(/\s+/);
 
-    const words = data
-      .map(row => row[4] || row[0]) // adjust based on your sheet
-      .filter(Boolean)
-      .map(word => word.trim());
-
-    if (words.length > 0) {
-      renderWordCloud(words);
-    } else {
-      document.getElementById("wordcloud").innerHTML = "<p>No data available yet.</p>";
-    }
-  } catch (err) {
-    console.error("Error loading CSV:", err);
-    document.getElementById("wordcloud").innerHTML = "<p>Failed to load data.</p>";
-  }
-}
-
-        if (words.length > 0) {
-          renderWordCloud(words);
-        } else {
-          document.getElementById("wordcloud").innerHTML = "<p>No data available yet.</p>";
+      const wordCounts = {};
+      words.forEach(word => {
+        word = word.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+        if (word.length > 2) {
+          wordCounts[word] = (wordCounts[word] || 0) + 1;
         }
-      } catch (err) {
-        console.error("Error loading CSV:", err);
-        document.getElementById("wordcloud").innerHTML = "<p>Failed to load data.</p>";
+      });
+
+      const wordData = Object.keys(wordCounts).map(word => ({
+        text: word,
+        size: 10 + wordCounts[word] * 5
+      }));
+
+      renderCloud(wordData);
+    }
+
+    function renderCloud(words) {
+      const width = document.getElementById("wordCloud").clientWidth;
+      const height = document.getElementById("wordCloud").clientHeight;
+
+      const layout = d3.layout.cloud()
+        .size([width, height])
+        .words(words)
+        .padding(5)
+        .rotate(() => ~~(Math.random() * 2) * 90)
+        .font("Impact")
+        .fontSize(d => d.size)
+        .on("end", draw);
+
+      layout.start();
+
+      function draw(words) {
+        d3.select("#wordCloud")
+          .append("svg")
+          .attr("width", width)
+          .attr("height", height)
+          .append("g")
+          .attr("transform", `translate(${width / 2},${height / 2})`)
+          .selectAll("text")
+          .data(words)
+          .enter()
+          .append("text")
+          .style("font-size", d => `${d.size}px`)
+          .style("fill", () => d3.schemeCategory10[Math.floor(Math.random() * 10)])
+          .attr("text-anchor", "middle")
+          .attr("transform", d => `translate(${[d.x, d.y]})rotate(${d.rotate})`)
+          .text(d => d.text);
       }
     }
 
-    function renderWordCloud(words) {
-      const container = document.getElementById("wordcloud");
-      container.innerHTML = "";
-      words.forEach(word => {
-        const el = document.createElement("span");
-        el.textContent = word;
-        el.className = "word";
-        el.style.fontSize = `${12 + Math.random() * 32}px`;
-        el.style.color = randomColor();
-        el.onclick = () => alert(`"${word}"`);
-        container.appendChild(el);
-      });
-    }
-
-    function randomColor() {
-      const colors = ["#2563eb", "#1d4ed8", "#60a5fa", "#3b82f6", "#1e40af", "#93c5fd"];
-      return colors[Math.floor(Math.random() * colors.length)];
-    }
-
-    // Load data
-    loadCSV(csvUrl);
+    loadData();
   </script>
-
 </body>
 </html>
