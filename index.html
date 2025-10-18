@@ -95,7 +95,7 @@ async function loadCSV(url) {
     const data = parseCSV(text);
 
     const words = data
-      .map(row => row[1] || row[0]) // adjust based on your sheet
+      .map(row => row[4] || row[0]) // adjust based on your sheet
       .filter(Boolean)
       .map(word => word.trim());
 
