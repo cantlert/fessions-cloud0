@@ -1,98 +1,151 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Fessions Word Cloud</title>
-  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
-  <script src="https://cdn.jsdelivr.net/npm/d3-cloud@1/build/d3.layout.cloud.js"></script>
-  <style>
-    body {
-      font-family: 'Arial', sans-serif;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      background-color: #fafafa;
-      margin: 0;
+<script>
+  const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSrNxHSKHvTW7SN6dBA0aRL2ekckHnWC2m4qp7WoOhrecea5E2l5crGJGrJxEBjRPTeSOMLSReNNmrv/pub?gid=413092187&single=true&output=csv"; // published Google Sheet CSV link
+
+  // Define mood-to-color mapping
+  const moodColors = {
+    vent: "#D32F2F",        // Red
+    rant: "#E64A19",        // Deep orange
+    release: "#1976D2",     // Blue
+    confess: "#7B1FA2",     // Purple
+    reflect: "#0288D1",     // Sky blue
+    celebrate: "#388E3C",   // Green
+    default: "#444"         // Fallback grey
+  };
+
+  async function loadData() {
+    const response = await fetch(csvUrl);
+    const text = await response.text();
+    const rows = text.split("\n").slice(1); // skip header row
+
+    // Extract structured message data
+    const messages = rows.map(row => {
+      const cols = row.split(",");
+      return {
+        mood: cols[1]?.trim().toLowerCase(),
+        title: cols[2]?.trim(),
+        message: cols[3]?.trim()
+      };
+    }).filter(d => d.message && d.message.length > 0);
+
+    // Build word frequency map
+    const allWords = messages
+      .map(m => m.message)
+      .join(" ")
+      .split(/\s+/)
+      .map(w => w.replace(/[^a-zA-Z0-9]/g, "").toLowerCase())
+      .filter(w => w.length > 2);
+
+    const wordCounts = {};
+    allWords.forEach(w => (wordCounts[w] = (wordCounts[w] || 0) + 1));
+
+    const wordData = Object.keys(wordCounts).map(w => ({
+      text: w,
+      size: 10 + wordCounts[w] * 5
+    }));
+
+    renderCloud(wordData, messages);
+  }
+
+  function renderCloud(words, messages) {
+    const width = document.getElementById("wordCloud").clientWidth;
+    const height = document.getElementById("wordCloud").clientHeight;
+
+    const layout = d3.layout.cloud()
+      .size([width, height])
+      .words(words)
+      .padding(5)
+      .rotate(() => ~~(Math.random() * 2) * 90)
+      .font("Impact")
+      .fontSize(d => d.size)
+      .on("end", draw);
+
+    layout.start();
+
+    function draw(words) {
+      const svg = d3.select("#wordCloud")
+        .append("svg")
+        .attr("width", width)
+        .attr("height", height)
+        .append("g")
+        .attr("transform", `translate(${width / 2},${height / 2})`);
+
+      svg.selectAll("text")
+        .data(words)
+        .enter()
+        .append("text")
+        .style("font-size", d => `${d.size}px`)
+        .style("fill", () => d3.schemeCategory10[Math.floor(Math.random() * 10)])
+        .attr("text-anchor", "middle")
+        .attr("transform", d => `translate(${[d.x, d.y]})rotate(${d.rotate})`)
+        .text(d => d.text)
+        .style("cursor", "pointer")
+        .on("click", (event, d) => showNote(d.text, messages));
     }
-    #wordCloud {
-      width: 90vw;
-      height: 90vh;
+  }
+
+  function showNote(word, messages) {
+    const related = messages.filter(m =>
+      m.message.toLowerCase().includes(word.toLowerCase())
+    );
+
+    if (related.length === 0) {
+      alert("No messages found for this word.");
+      return;
     }
-  </style>
-</head>
-<body>
-  <div id="wordCloud"></div>
-  
-  <script>
-    const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSrNxHSKHvTW7SN6dBA0aRL2ekckHnWC2m4qp7WoOhrecea5E2l5crGJGrJxEBjRPTeSOMLSReNNmrv/pub?gid=413092187&single=true&output=csv"; // published CSV link from Google Sheets
 
-    async function loadData() {
-      const response = await fetch(csvUrl);
-      const data = await response.text();
-      const rows = data.split("\n").slice(1); // skip header row
+    const note = related[Math.floor(Math.random() * related.length)];
+    const bgColor = moodColors[note.mood] || moodColors.default;
 
-      const words = rows
-        .map(row => {
-          const cols = row.split(",");
-          return cols[3]; // Message column
-        })
-        .filter(Boolean)
-        .join(" ")
-        .split(/\s+/);
+    let modal = document.getElementById("noteModal");
+    if (!modal) {
+      modal = document.createElement("div");
+      modal.id = "noteModal";
+      modal.innerHTML = `
+        <div id="noteContent">
+          <h2 id="noteTitle"></h2>
+          <p id="noteMessage"></p>
+          <button id="nextNote">Next</button>
+          <button id="closeNote">Close</button>
+        </div>
+      `;
+      document.body.appendChild(modal);
 
-      const wordCounts = {};
-      words.forEach(word => {
-        word = word.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
-        if (word.length > 2) {
-          wordCounts[word] = (wordCounts[word] || 0) + 1;
+      const style = document.createElement("style");
+      style.textContent = `
+        #noteModal {
+          position: fixed;
+          top: 0; left: 0; width: 100%; height: 100%;
+          display: flex; align-items: center; justify-content: center;
+          z-index: 999;
         }
-      });
-
-      const wordData = Object.keys(wordCounts).map(word => ({
-        text: word,
-        size: 10 + wordCounts[word] * 5
-      }));
-
-      renderCloud(wordData);
+        #noteContent {
+          background: white;
+          padding: 20px;
+          border-radius: 10px;
+          max-width: 600px;
+          text-align: center;
+          box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+          transition: background-color 0.4s ease;
+        }
+        #noteContent h2 { margin-bottom: 10px; color: #222; }
+        #noteContent p { font-size: 18px; color: #333; margin-bottom: 15px; }
+        #noteContent button { margin: 5px; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; }
+        #nextNote { background: #007BFF; color: white; }
+        #closeNote { background: #555; color: white; }
+      `;
+      document.head.appendChild(style);
     }
 
-    function renderCloud(words) {
-      const width = document.getElementById("wordCloud").clientWidth;
-      const height = document.getElementById("wordCloud").clientHeight;
+    // Apply background color and text content
+    modal.style.background = `${bgColor}E6`; // semi-transparent color overlay
+    document.getElementById("noteTitle").textContent = note.title || "(Untitled)";
+    document.getElementById("noteMessage").textContent = note.message;
 
-      const layout = d3.layout.cloud()
-        .size([width, height])
-        .words(words)
-        .padding(5)
-        .rotate(() => ~~(Math.random() * 2) * 90)
-        .font("Impact")
-        .fontSize(d => d.size)
-        .on("end", draw);
+    modal.style.display = "flex";
 
-      layout.start();
+    document.getElementById("nextNote").onclick = () => showNote(word, messages);
+    document.getElementById("closeNote").onclick = () => modal.style.display = "none";
+  }
 
-      function draw(words) {
-        d3.select("#wordCloud")
-          .append("svg")
-          .attr("width", width)
-          .attr("height", height)
-          .append("g")
-          .attr("transform", `translate(${width / 2},${height / 2})`)
-          .selectAll("text")
-          .data(words)
-          .enter()
-          .append("text")
-          .style("font-size", d => `${d.size}px`)
-          .style("fill", () => d3.schemeCategory10[Math.floor(Math.random() * 10)])
-          .attr("text-anchor", "middle")
-          .attr("transform", d => `translate(${[d.x, d.y]})rotate(${d.rotate})`)
-          .text(d => d.text);
-      }
-    }
-
-    loadData();
-  </script>
-</body>
-</html>
+  loadData();
+</script>
