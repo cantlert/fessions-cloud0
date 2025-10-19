@@ -1,151 +1,139 @@
-<script>
-  const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSrNxHSKHvTW7SN6dBA0aRL2ekckHnWC2m4qp7WoOhrecea5E2l5crGJGrJxEBjRPTeSOMLSReNNmrv/pub?gid=413092187&single=true&output=csv"; // published Google Sheet CSV link
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fessions Word Cloud</title>
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      margin: 0;
+      background-color: #f9fafb;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      overflow: hidden;
+    }
+    #wordCloud {
+      width: 90vw;
+      height: 80vh;
+    }
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.7);
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+    .modal-content {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      width: 400px;
+      color: #333;
+      text-align: center;
+      font-size: 1.1em;
+    }
+    .close {
+      margin-top: 15px;
+      background: #333;
+      color: white;
+      padding: 8px 16px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
 
-  // Define mood-to-color mapping
-  const moodColors = {
-    vent: "#D32F2F",        // Red
-    rant: "#E64A19",        // Deep orange
-    release: "#1976D2",     // Blue
-    confess: "#7B1FA2",     // Purple
-    reflect: "#0288D1",     // Sky blue
-    celebrate: "#388E3C",   // Green
-    default: "#444"         // Fallback grey
-  };
+  <div id="wordCloud"></div>
 
-  async function loadData() {
-    const response = await fetch(csvUrl);
-    const text = await response.text();
-    const rows = text.split("\n").slice(1); // skip header row
+  <div id="modal" class="modal">
+    <div id="modalContent" class="modal-content">
+      <p id="modalMessage"></p>
+      <button class="close" onclick="closeModal()">Close</button>
+    </div>
+  </div>
 
-    // Extract structured message data
-    const messages = rows.map(row => {
-      const cols = row.split(",");
-      return {
-        mood: cols[1]?.trim().toLowerCase(),
-        title: cols[2]?.trim(),
-        message: cols[3]?.trim()
-      };
-    }).filter(d => d.message && d.message.length > 0);
+  <!-- Load D3 libraries FIRST -->
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3-cloud/1.2.5/d3.layout.cloud.min.js"></script>
 
-    // Build word frequency map
-    const allWords = messages
-      .map(m => m.message)
-      .join(" ")
-      .split(/\s+/)
-      .map(w => w.replace(/[^a-zA-Z0-9]/g, "").toLowerCase())
-      .filter(w => w.length > 2);
+  <!-- Then load your custom script -->
+  <script>
+    const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSrNxHSKHvTW7SN6dBA0aRL2ekckHnWC2m4qp7WoOhrecea5E2l5crGJGrJxEBjRPTeSOMLSReNNmrv/pub?gid=413092187&single=true&output=csv"; // <-- replace this with your Google Sheet CSV link
 
-    const wordCounts = {};
-    allWords.forEach(w => (wordCounts[w] = (wordCounts[w] || 0) + 1));
+    const moodColors = {
+      vent: "#E57373",
+      rant: "#F44336",
+      release: "#64B5F6",
+      confess: "#BA68C8",
+      reflect: "#81C784",
+      celebrate: "#FFD54F"
+    };
 
-    const wordData = Object.keys(wordCounts).map(w => ({
-      text: w,
-      size: 10 + wordCounts[w] * 5
-    }));
-
-    renderCloud(wordData, messages);
-  }
-
-  function renderCloud(words, messages) {
     const width = document.getElementById("wordCloud").clientWidth;
     const height = document.getElementById("wordCloud").clientHeight;
 
-    const layout = d3.layout.cloud()
-      .size([width, height])
-      .words(words)
-      .padding(5)
-      .rotate(() => ~~(Math.random() * 2) * 90)
-      .font("Impact")
-      .fontSize(d => d.size)
-      .on("end", draw);
+    const svg = d3.select("#wordCloud")
+      .append("svg")
+      .attr("width", width)
+      .attr("height", height)
+      .append("g")
+      .attr("transform", `translate(${width / 2},${height / 2})`);
 
-    layout.start();
-
-    function draw(words) {
-      const svg = d3.select("#wordCloud")
-        .append("svg")
-        .attr("width", width)
-        .attr("height", height)
-        .append("g")
-        .attr("transform", `translate(${width / 2},${height / 2})`);
-
-      svg.selectAll("text")
-        .data(words)
-        .enter()
-        .append("text")
-        .style("font-size", d => `${d.size}px`)
-        .style("fill", () => d3.schemeCategory10[Math.floor(Math.random() * 10)])
-        .attr("text-anchor", "middle")
-        .attr("transform", d => `translate(${[d.x, d.y]})rotate(${d.rotate})`)
-        .text(d => d.text)
-        .style("cursor", "pointer")
-        .on("click", (event, d) => showNote(d.text, messages));
-    }
-  }
-
-  function showNote(word, messages) {
-    const related = messages.filter(m =>
-      m.message.toLowerCase().includes(word.toLowerCase())
-    );
-
-    if (related.length === 0) {
-      alert("No messages found for this word.");
-      return;
+    function closeModal() {
+      document.getElementById("modal").style.display = "none";
     }
 
-    const note = related[Math.floor(Math.random() * related.length)];
-    const bgColor = moodColors[note.mood] || moodColors.default;
-
-    let modal = document.getElementById("noteModal");
-    if (!modal) {
-      modal = document.createElement("div");
-      modal.id = "noteModal";
-      modal.innerHTML = `
-        <div id="noteContent">
-          <h2 id="noteTitle"></h2>
-          <p id="noteMessage"></p>
-          <button id="nextNote">Next</button>
-          <button id="closeNote">Close</button>
-        </div>
-      `;
-      document.body.appendChild(modal);
-
-      const style = document.createElement("style");
-      style.textContent = `
-        #noteModal {
-          position: fixed;
-          top: 0; left: 0; width: 100%; height: 100%;
-          display: flex; align-items: center; justify-content: center;
-          z-index: 999;
-        }
-        #noteContent {
-          background: white;
-          padding: 20px;
-          border-radius: 10px;
-          max-width: 600px;
-          text-align: center;
-          box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-          transition: background-color 0.4s ease;
-        }
-        #noteContent h2 { margin-bottom: 10px; color: #222; }
-        #noteContent p { font-size: 18px; color: #333; margin-bottom: 15px; }
-        #noteContent button { margin: 5px; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; }
-        #nextNote { background: #007BFF; color: white; }
-        #closeNote { background: #555; color: white; }
-      `;
-      document.head.appendChild(style);
+    function showModal(message, mood) {
+      const modal = document.getElementById("modal");
+      const modalContent = document.getElementById("modalContent");
+      document.getElementById("modalMessage").innerText = message;
+      modalContent.style.background = moodColors[mood] || "white";
+      modal.style.display = "flex";
     }
 
-    // Apply background color and text content
-    modal.style.background = `${bgColor}E6`; // semi-transparent color overlay
-    document.getElementById("noteTitle").textContent = note.title || "(Untitled)";
-    document.getElementById("noteMessage").textContent = note.message;
+    // Load CSV data
+    d3.csv(csvUrl).then(data => {
+      const words = data.map(d => ({
+        text: d.Title || "(untitled)",
+        size: 10 + Math.random() * 60,
+        message: d.Message,
+        mood: d.Mood ? d.Mood.toLowerCase() : "reflect"
+      }));
 
-    modal.style.display = "flex";
+      d3.layout.cloud()
+        .size([width, height])
+        .words(words)
+        .padding(5)
+        .rotate(() => (~~(Math.random() * 2) * 90))
+        .font("Impact")
+        .fontSize(d => d.size)
+        .on("end", draw)
+        .start();
 
-    document.getElementById("nextNote").onclick = () => showNote(word, messages);
-    document.getElementById("closeNote").onclick = () => modal.style.display = "none";
-  }
+      function draw(words) {
+        svg.selectAll("text")
+          .data(words)
+          .enter().append("text")
+          .style("font-size", d => d.size + "px")
+          .style("font-family", "Impact")
+          .style("fill", d => moodColors[d.mood] || "#888")
+          .attr("text-anchor", "middle")
+          .attr("transform", d => `translate(${[d.x, d.y]})rotate(${d.rotate})`)
+          .text(d => d.text)
+          .on("click", (event, d) => showModal(d.message, d.mood));
+      }
+    }).catch(err => {
+      console.error("Error loading CSV:", err);
+    });
+  </script>
 
-  loadData();
-</script>
+</body>
+</html>
