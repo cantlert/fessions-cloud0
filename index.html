@@ -36,7 +36,6 @@
     border-radius: 10px;
     max-width: 600px;
     width: 80%;
-    transition: background 0.3s ease;
   }
   #modalButtons {
     display: flex;
@@ -54,17 +53,6 @@
   }
   .btn:hover {
     background: #555;
-  }
-
-  /* Pulse animation for hover effect */
-  @keyframes pulse {
-    0% { transform: scale(1); opacity: 1; }
-    50% { transform: scale(1.15); opacity: 0.85; }
-    100% { transform: scale(1); opacity: 1; }
-  }
-
-  text.hover-pulse {
-    animation: pulse 0.4s ease-in-out;
   }
 </style>
 </head>
@@ -85,23 +73,21 @@
 </div>
 
 <script>
-const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSrNxHSKHvTW7SN6dBA0aRL2ekckHnWC2m4qp7WoOhrecea5E2l5crGJGrJxEBjRPTeSOMLSReNNmrv/pub?gid=413092187&single=true&output=csv"; // replace with your live CSV URL
+const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSrNxHSKHvTW7SN6dBA0aRL2ekckHnWC2m4qp7WoOhrecea5E2l5crGJGrJxEBjRPTeSOMLSReNNmrv/pub?gid=413092187&single=true&output=csv";
 
 d3.csv(csvUrl).then(data => {
+  // Split each message into words and track their mood and message
   const words = [];
   data.forEach(row => {
     if (row.Message) {
       const messageWords = row.Message.split(/\s+/);
       messageWords.forEach(word => {
-        const clean = word.replace(/[^a-zA-Z0-9’'-]/g, '');
-        if (clean) {
-          words.push({
-            text: clean,
-            size: 10 + Math.random() * 40,
-            mood: row.Mood || 'neutral',
-            fullMessage: row.Message
-          });
-        }
+        words.push({
+          text: word.replace(/[^a-zA-Z0-9’'-]/g, ''),
+          size: 10 + Math.random() * 40,
+          mood: row.Mood || 'neutral',
+          fullMessage: row.Message
+        });
       });
     }
   });
@@ -142,12 +128,8 @@ d3.csv(csvUrl).then(data => {
       .attr("text-anchor", "middle")
       .attr("transform", d => "translate(" + [d.x, d.y] + ")rotate(" + d.rotate + ")")
       .text(d => d.text)
-      .on("mouseover", function() {
-        d3.select(this).classed("hover-pulse", true).style("font-weight", "bold");
-      })
-      .on("mouseout", function() {
-        d3.select(this).classed("hover-pulse", false).style("font-weight", "normal");
-      })
+      .on("mouseover", function() { d3.select(this).style("font-weight", "bold"); })
+      .on("mouseout", function() { d3.select(this).style("font-weight", "normal"); })
       .on("click", (event, d) => showModal(d));
   }
 
