@@ -1,180 +1,378 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Fessions Word Cloud</title>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Fessions — Focus Word Cloud</title>
+
+<!-- Libraries (free) -->
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <script src="https://d3js.org/d3.v7.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3-cloud/1.2.5/d3.layout.cloud.min.js"></script>
+
 <style>
-  body {
-    margin: 0;
-    background-color: #111;
-    color: #eee;
-    font-family: 'Inter', sans-serif;
-    text-align: center;
+  :root{
+    --bg:#0b1220; --card:#0f1724; --muted:#94a3b8; --text:#e6eef6;
   }
-  h1 {
-    margin-top: 20px;
-    font-weight: 600;
-  }
-  #wordCloud {
-    width: 100%;
-    height: 90vh;
-    margin: auto;
-  }
-  #modal {
-    display: none;
-    position: fixed;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
-    background: rgba(0,0,0,0.8);
-    justify-content: center;
-    align-items: center;
-    z-index: 999;
-  }
-  #modalContent {
-    background: white;
-    color: black;
-    padding: 20px;
-    border-radius: 10px;
-    max-width: 600px;
-    width: 80%;
-    transition: background 0.3s ease;
-  }
-  #modalButtons {
-    display: flex;
-    justify-content: space-between;
-    margin-top: 15px;
-  }
-  .btn {
-    padding: 6px 16px;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    background: #333;
-    color: #fff;
-    font-weight: 600;
-  }
-  .btn:hover {
-    background: #555;
-  }
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,Arial,sans-serif}
+  .wrap{max-width:1200px;margin:18px auto;padding:18px}
+  header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+  h1{margin:0;font-size:20px}
+  p.lead{color:var(--muted);margin:6px 0 0;font-size:14px}
+  #cloudBox{background:var(--card);border-radius:12px;padding:12px;min-height:60vh;position:relative;overflow:hidden}
+  #cloudSvg{width:100%;height:100%}
+  .wc-tooltip{position:absolute;pointer-events:none;background:#fff;color:#111;padding:6px 8px;border-radius:6px;font-size:13px;display:none;z-index:50;box-shadow:0 6px 18px rgba(0,0,0,0.25)}
+  .controls{display:flex;gap:8px;align-items:center;margin-top:12px}
+  .btn{background:#06b6d4;border:0;color:#04263b;padding:8px 12px;border-radius:9px;cursor:pointer;font-weight:600}
+  .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--text)}
+  footer{margin-top:14px;color:var(--muted);font-size:13px;text-align:center}
+
+  /* Modal */
+  .modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);z-index:100}
+  .modal-card{width:min(920px,94%);max-height:80vh;overflow:auto;border-radius:12px;background:#fff;color:#0b1220;padding:18px;box-shadow:0 18px 48px rgba(0,0,0,0.5)}
+  .meta{font-size:13px;color:#666;margin-bottom:8px}
+  .post-body{white-space:pre-wrap;font-size:16px;color:#111}
+  .modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+  .btn-dark{background:#111;color:#fff;border-radius:8px;padding:8px 12px;border:0;cursor:pointer}
+  .btn-dark:active{transform:translateY(1px)}
+  @media (max-width:640px){ .modal-card{padding:12px;font-size:15px} }
 </style>
 </head>
 <body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>Fessions — Reflect</h1>
+        <p class="lead">Explore focused keywords from anonymous releases. Hover to select, click to read one related post.</p>
+      </div>
+      <div style="text-align:right;color:var(--muted);font-size:13px">Support • Donate</div>
+    </header>
 
-<h1>Fessions Word Cloud</h1>
-<div id="wordCloud"></div>
+    <div id="cloudBox" aria-live="polite">
+      <svg id="cloudSvg" viewBox="0 0 1200 600" preserveAspectRatio="xMidYMid meet"></svg>
+      <div id="wcTooltip" class="wc-tooltip">Click to read</div>
+    </div>
 
-<div id="modal">
-  <div id="modalContent">
-    <p id="modalText"></p>
-    <div id="modalButtons">
-      <button class="btn" id="prevBtn">← Back</button>
-      <button class="btn" id="closeBtn">✖ Close</button>
-      <button class="btn" id="nextBtn">Next →</button>
+    <div class="controls">
+      <button id="randomBtn" class="btn ghost">Random Word</button>
+      <button id="refreshBtn" class="btn ghost">Refresh</button>
+      <div style="flex:1"></div>
+      <div style="font-size:13px;color:var(--muted)">Cloud shows top focus keywords only</div>
+    </div>
+
+    <footer>All posts are anonymous • Some posts may be moderated</footer>
+  </div>
+
+  <!-- Modal -->
+  <div id="modal" class="modal" role="dialog" aria-hidden="true">
+    <div class="modal-card" id="modalCard">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div><strong id="modalWord">Word</strong></div>
+        <div id="modalMood" style="font-size:13px;color:#666"></div>
+      </div>
+
+      <div id="modalContent" style="margin-top:10px">
+        <div class="meta" id="modalMeta"></div>
+        <div class="post-body" id="modalBody"></div>
+      </div>
+
+      <div class="modal-actions">
+        <button id="prevBtn" class="btn-dark">← Back</button>
+        <button id="nextBtn" class="btn-dark">Next →</button>
+        <button id="closeBtn" class="btn-dark">✖ Close</button>
+      </div>
     </div>
   </div>
-</div>
 
 <script>
-const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSrNxHSKHvTW7SN6dBA0aRL2ekckHnWC2m4qp7WoOhrecea5E2l5crGJGrJxEBjRPTeSOMLSReNNmrv/pub?gid=413092187&single=true&output=csv"; // Replace with your live Google Sheet CSV link
+/* ============ CONFIG ============ */
+// Replace with your published Google Sheets CSV URL (Publish -> CSV)
+const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSrNxHSKHvTW7SN6dBA0aRL2ekckHnWC2m4qp7WoOhrecea5E2l5crGJGrJxEBjRPTeSOMLSReNNmrv/pub?gid=413092187&single=true&output=csv";
 
-d3.csv(csvUrl).then(data => {
-  const words = [];
-  data.forEach(row => {
-    if (row.Message) {
-      const messageWords = row.Message.split(/\s+/);
-      messageWords.forEach(word => {
-        const clean = word.replace(/[^a-zA-Z0-9’'-]/g, '');
-        if (clean) {
-          words.push({
-            text: clean,
-            size: 10 + Math.random() * 40,
-            mood: row.Mood || 'neutral',
-            fullMessage: row.Message
-          });
-        }
-      });
-    }
+// CSV header names exactly as in your sheet
+const TIMESTAMP_FIELD = "Timestamp";
+const MOOD_FIELD = "Mood";
+const TITLE_FIELD = "Title";
+const MESSAGE_FIELD = "Message";
+const PUBLISHED_FIELD = "Published"; // set to null to ignore
+
+// focus keyword config
+const TOP_N_KEYWORDS = 80;        // how many focus keywords to show
+const MIN_TOKEN_LENGTH = 3;       // ignore short tokens
+const MIN_FREQ = 2;               // hide words that appear fewer than X times
+
+// stopwords (extend as needed)
+const STOPWORDS = new Set([
+  "the","and","for","that","this","with","have","just","about","your","you","are",
+  "but","not","was","they","from","what","when","like","their","them","it's",
+  "ive","i'm","i","me","my","we","our","or","a","an","in","on","of","to","be","as",
+  "at","so","if","by","is","it","has","had","do","does","did","will","would","can",
+  "could","rt","u","im","yeah","oh","also","get","got","want","wants","dont","don't"
+]);
+
+// Mood -> color
+const MOOD_COLORS = {
+  vent: "#E74C3C",
+  rant: "#D84315",
+  release: "#1976D2",
+  confess: "#7B1FA2",
+  reflect: "#0288D1",
+  celebrate: "#388E3C",
+  default: "#666666"
+};
+
+/* ============ STATE ============ */
+let posts = []; // {Timestamp, Mood, Title, Message}
+let keywordList = []; // [{text, size, count, mood}]
+let currentWord = null;
+let currentMatches = [];
+let currentIndex = 0;
+
+/* DOM */
+const svgEl = d3.select("#cloudSvg");
+const tooltip = document.getElementById("wcTooltip");
+const modal = document.getElementById("modal");
+const modalCard = document.getElementById("modalCard");
+const modalWord = document.getElementById("modalWord");
+const modalMood = document.getElementById("modalMood");
+const modalMeta = document.getElementById("modalMeta");
+const modalBody = document.getElementById("modalBody");
+const closeBtn = document.getElementById("closeBtn");
+const nextBtn = document.getElementById("nextBtn");
+const prevBtn = document.getElementById("prevBtn");
+const randomBtn = document.getElementById("randomBtn");
+const refreshBtn = document.getElementById("refreshBtn");
+
+/* ============ HELPERS ============ */
+function sanitizeToken(t){
+  return (t || "").toLowerCase().replace(/[^a-z0-9']/g,"").trim();
+}
+function tokenizeText(s){
+  return (s||"").split(/\s+/).map(sanitizeToken).filter(t => t.length >= MIN_TOKEN_LENGTH && !STOPWORDS.has(t));
+}
+function hexToRgba(hex, alpha){
+  if(!hex) return `rgba(0,0,0,${alpha})`;
+  const h = hex.replace('#','');
+  const bigint = parseInt(h,16);
+  const r = (bigint >> 16) & 255;
+  const g = (bigint >> 8) & 255;
+  const b = bigint & 255;
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+/* ============ DATA LOAD ============ */
+async function loadData(){
+  try{
+    const res = await fetch(CSV_URL);
+    if(!res.ok) throw new Error("CSV fetch failed " + res.status);
+    const text = await res.text();
+    const parsed = Papa.parse(text, {header:true, skipEmptyLines:true});
+    posts = parsed.data
+      .filter(row => {
+        if(PUBLISHED_FIELD && (row[PUBLISHED_FIELD] || "").toLowerCase() !== "ok") return false;
+        return (row[MESSAGE_FIELD] || "").trim().length > 0;
+      })
+      .map(row=>({
+        Timestamp: row[TIMESTAMP_FIELD] || "",
+        Mood: (row[MOOD_FIELD] || "").toLowerCase(),
+        Title: row[TITLE_FIELD] || "",
+        Message: row[MESSAGE_FIELD] || ""
+      }));
+    buildKeywords();
+  }catch(e){
+    console.error("loadData error", e);
+    svgEl.selectAll("*").remove();
+    svgEl.append("text").attr("x",20).attr("y",30).style("fill","#999").text("Failed to load data.");
+  }
+}
+
+/* ============ BUILD FOCUS KEYWORDS ============ */
+function buildKeywords(){
+  const freq = {}; // token -> count
+  const wordToPosts = {}; // token -> [post indexes]
+  posts.forEach((p, i) => {
+    const tokens = tokenizeText(p.Message);
+    tokens.forEach(tok=>{
+      freq[tok] = (freq[tok]||0) + 1;
+      (wordToPosts[tok] = wordToPosts[tok]||new Set()).add(i);
+    });
   });
 
-  const colorMap = {
-    vent: "#e74c3c",       // red
-    rant: "#c0392b",       // dark red
-    release: "#1abc9c",    // teal
-    confess: "#9b59b6",    // purple
-    reflect: "#3498db",    // blue
-    celebrate: "#f1c40f",  // yellow
-    neutral: "#7f8c8d"     // gray
-  };
+  // create array from freq, filter by MIN_FREQ and sensible tokens
+  let arr = Object.keys(freq)
+    .filter(k => freq[k] >= MIN_FREQ)
+    .map(k => ({text:k, count:freq[k], postIndexes:[...wordToPosts[k]]}));
 
+  // sort by frequency and keep top N
+  arr.sort((a,b)=>b.count - a.count);
+  arr = arr.slice(0, TOP_N_KEYWORDS);
+
+  // compute size normalization (12..56 px)
+  const maxCount = arr.length ? arr[0].count : 1;
+  keywordList = arr.map(a=>{
+    // determine dominant mood for this token (majority mood among matching posts)
+    const moodCounts = {};
+    a.postIndexes.forEach(pi=>{
+      const m = posts[pi].Mood || "default";
+      moodCounts[m] = (moodCounts[m]||0) + 1;
+    });
+    const dominantMood = Object.keys(moodCounts).reduce((best, m)=>{
+      if(!best) return m;
+      return (moodCounts[m] > moodCounts[best]) ? m : best;
+    }, null) || "default";
+
+    const minSize = 12, maxSize = 56;
+    const size = Math.round(minSize + (a.count / maxCount) * (maxSize - minSize));
+    return {text:a.text, count:a.count, size, mood:dominantMood, postIndexes:a.postIndexes};
+  });
+
+  renderCloud();
+}
+
+/* ============ RENDER CLOUD ============ */
+function renderCloud(){
+  svgEl.selectAll("*").remove();
+  if(!keywordList.length){
+    svgEl.append("text").attr("x",20).attr("y",30).style("fill","#999").text("No focus keywords yet.");
+    return;
+  }
+
+  // compute width/height based on container
+  const box = document.getElementById("cloudBox");
+  const width = box.clientWidth;
+  const height = Math.max(300, box.clientHeight);
+
+  // use d3-cloud layout
   const layout = d3.layout.cloud()
-    .size([window.innerWidth, window.innerHeight * 0.8])
-    .words(words)
+    .size([width, height])
+    .words(keywordList.map(k=>({text:k.text, size:k.size, mood:k.mood, count:k.count})))
     .padding(4)
     .rotate(() => 0)
-    .font("Inter")
-    .fontSize(d => d.size)
+    .font("Impact")
+    .fontSize(d=>d.size)
     .on("end", draw);
 
   layout.start();
 
-  function draw(words) {
-    const svg = d3.select("#wordCloud").append("svg")
-      .attr("width", layout.size()[0])
-      .attr("height", layout.size()[1])
-      .append("g")
-      .attr("transform", "translate(" + layout.size()[0] / 2 + "," + layout.size()[1] / 2 + ")");
+  function draw(words){
+    const svg = svgEl
+      .attr("viewBox", `0 0 ${width} ${height}`)
+      .attr("preserveAspectRatio", "xMidYMid meet");
 
-    svg.selectAll("text")
+    const g = svg.append("g").attr("transform", `translate(${width/2},${height/2})`);
+
+    const txt = g.selectAll("text")
       .data(words)
-      .enter().append("text")
-      .style("font-size", d => d.size + "px")
-      .style("fill", d => colorMap[d.mood] || "#fff")
-      .attr("text-anchor", "middle")
-      .attr("transform", d => "translate(" + [d.x, d.y] + ")rotate(" + d.rotate + ")")
-      .text(d => d.text)
-      .on("mouseover", function() {
-        d3.select(this).style("font-weight", "bold");
-      })
-      .on("mouseout", function() {
-        d3.select(this).style("font-weight", "normal");
-      })
-      .on("click", (event, d) => showModal(d));
+      .enter()
+      .append("text")
+      .attr("text-anchor","middle")
+      .attr("transform", d=>`translate(${d.x},${d.y})rotate(${d.rotate})`)
+      .style("font-family","Impact, Arial")
+      .style("fill", d => MOOD_COLORS[d.mood] || MOOD_COLORS.default)
+      .style("font-size", d=> d.size + "px")
+      .style("cursor","pointer")
+      .text(d=>d.text);
+
+    // hover behavior: enlarge slightly to indicate selectable (no pulse)
+    txt.on("mouseover", function(event, d){
+        d3.select(this)
+          .transition().duration(140)
+          .style("font-size", (d.size * 1.25) + "px")
+          .style("font-weight","700");
+        // tooltip
+        tooltip.style.left = (event.pageX + 10) + "px";
+        tooltip.style.top = (event.pageY - 26) + "px";
+        tooltip.textContent = `${d.text} • ${d.count} posts • Click to open`;
+        tooltip.style.display = "block";
+    }).on("mousemove", function(event){ // move tooltip
+        tooltip.style.left = (event.pageX + 10) + "px";
+        tooltip.style.top = (event.pageY - 26) + "px";
+    }).on("mouseout", function(event, d){
+        d3.select(this)
+          .transition().duration(140)
+          .style("font-size", d.size + "px")
+          .style("font-weight","400");
+        tooltip.style.display = "none";
+    }).on("click", function(event, d){
+        openModalForWord(d.text);
+    });
   }
+}
 
-  let currentIndex = 0;
-  function showModal(selected) {
-    const related = data.filter(r => r.Message.includes(selected.text));
-    if (related.length === 0) return;
+/* ============ MODAL / NAVIGATION ============ */
+function openModalForWord(word){
+  currentWord = word;
+  // find all posts that include this token (tokenized match)
+  currentMatches = posts.filter(p => tokenizeText(p.Message).includes(word));
+  // fallback substring
+  if(currentMatches.length === 0){
+    currentMatches = posts.filter(p => (p.Message||"").toLowerCase().includes(word));
+  }
+  currentIndex = 0;
+  renderModal();
+  showModal();
+}
 
-    const modal = document.getElementById("modal");
-    const modalText = document.getElementById("modalText");
+function renderModal(){
+  if(!currentMatches || currentMatches.length === 0){
+    modalMeta.textContent = "";
+    modalBody.textContent = "No posts found.";
+    modalMood.textContent = "";
+    return;
+  }
+  const p = currentMatches[currentIndex];
+  modalWord.textContent = `"${currentWord}"`;
+  modalMood.textContent = p.Mood ? p.Mood.toUpperCase() : "";
+  modalMeta.textContent = (p.Timestamp ? p.Timestamp + " • " : "") + (p.Title || "");
+  modalBody.innerHTML = escapeHtml(p.Message);
 
-    function updateModal() {
-      const item = related[currentIndex];
-      modalText.textContent = item.Message;
-      document.getElementById("modalContent").style.background = colorMap[item.Mood] || "#fff";
-    }
+  // tint modal card border/top by mood color
+  const moodColor = MOOD_COLORS[p.Mood] || MOOD_COLORS.default;
+  modalCard.style.borderTop = `6px solid ${moodColor}`;
+  modalCard.style.boxShadow = `0 12px 36px ${hexToRgba(moodColor,0.16)}`;
+}
 
-    updateModal();
-    modal.style.display = "flex";
+function showModal(){
+  modal.style.display = "flex";
+  modal.setAttribute("aria-hidden","false");
+}
+function closeModal(){
+  modal.style.display = "none";
+  modal.setAttribute("aria-hidden","true");
+}
 
-    document.getElementById("prevBtn").onclick = () => {
-      currentIndex = (currentIndex - 1 + related.length) % related.length;
-      updateModal();
-    };
+/* ============ UTIL ============ */
+function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g,c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[c]); }
 
-    document.getElementById("nextBtn").onclick = () => {
-      currentIndex = (currentIndex + 1) % related.length;
-      updateModal();
-    };
+/* ============ UI HOOKS ============ */
+closeBtn.addEventListener('click', closeModal);
+nextBtn.addEventListener('click', ()=>{ if(!currentMatches) return; currentIndex = (currentIndex + 1) % currentMatches.length; renderModal();});
+prevBtn.addEventListener('click', ()=>{ if(!currentMatches) return; currentIndex = (currentIndex - 1 + currentMatches.length) % currentMatches.length; renderModal();});
+randomBtn.addEventListener('click', ()=>{
+  if(!keywordList.length) return;
+  const r = keywordList[Math.floor(Math.random()*keywordList.length)].text;
+  openModalForWord(r);
+});
+refreshBtn.addEventListener('click', ()=> loadData());
 
-    document.getElementById("closeBtn").onclick = () => modal.style.display = "none";
+// keyboard navigation
+document.addEventListener('keydown', (e)=>{
+  if(modal.style.display === "flex"){
+    if(e.key === "Escape") closeModal();
+    if(e.key === "ArrowRight") { nextBtn.click(); }
+    if(e.key === "ArrowLeft")  { prevBtn.click(); }
   }
 });
-</script>
 
+/* ============ START ============ */
+loadData();
+
+/* responsive: redraw cloud on resize (debounced) */
+let _resizeTimer = null;
+window.addEventListener('resize', ()=>{
+  if(_resizeTimer) clearTimeout(_resizeTimer);
+  _resizeTimer = setTimeout(()=>{ buildKeywords(); }, 220);
+});
+</script>
 </body>
 </html>
