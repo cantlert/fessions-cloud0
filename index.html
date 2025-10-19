@@ -1,139 +1,107 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Fessions Word Cloud</title>
-  <style>
-    body {
-      font-family: 'Arial', sans-serif;
-      margin: 0;
-      background-color: #f9fafb;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      overflow: hidden;
-    }
-    #wordCloud {
-      width: 90vw;
-      height: 80vh;
-    }
-    .modal {
-      display: none;
-      position: fixed;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      background: rgba(0,0,0,0.7);
-      justify-content: center;
-      align-items: center;
-      z-index: 1000;
-    }
-    .modal-content {
-      background: white;
-      padding: 30px;
-      border-radius: 12px;
-      width: 400px;
-      color: #333;
-      text-align: center;
-      font-size: 1.1em;
-    }
-    .close {
-      margin-top: 15px;
-      background: #333;
-      color: white;
-      padding: 8px 16px;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-    }
-  </style>
-</head>
-<body>
+<script>
+  const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSrNxHSKHvTW7SN6dBA0aRL2ekckHnWC2m4qp7WoOhrecea5E2l5crGJGrJxEBjRPTeSOMLSReNNmrv/pub?gid=413092187&single=true&output=csv"; // <-- Replace with your Google Sheet CSV URL
 
-  <div id="wordCloud"></div>
+  const moodColors = {
+    vent: "#E57373",
+    rant: "#F44336",
+    release: "#64B5F6",
+    confess: "#BA68C8",
+    reflect: "#81C784",
+    celebrate: "#FFD54F"
+  };
 
-  <div id="modal" class="modal">
-    <div id="modalContent" class="modal-content">
-      <p id="modalMessage"></p>
-      <button class="close" onclick="closeModal()">Close</button>
-    </div>
-  </div>
+  const width = document.getElementById("wordCloud").clientWidth;
+  const height = document.getElementById("wordCloud").clientHeight;
 
-  <!-- Load D3 libraries FIRST -->
-  <script src="https://d3js.org/d3.v7.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3-cloud/1.2.5/d3.layout.cloud.min.js"></script>
+  const svg = d3.select("#wordCloud")
+    .append("svg")
+    .attr("width", width)
+    .attr("height", height)
+    .append("g")
+    .attr("transform", `translate(${width / 2},${height / 2})`);
 
-  <!-- Then load your custom script -->
-  <script>
-    const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSrNxHSKHvTW7SN6dBA0aRL2ekckHnWC2m4qp7WoOhrecea5E2l5crGJGrJxEBjRPTeSOMLSReNNmrv/pub?gid=413092187&single=true&output=csv"; // <-- replace this with your Google Sheet CSV link
+  function closeModal() {
+    document.getElementById("modal").style.display = "none";
+  }
 
-    const moodColors = {
-      vent: "#E57373",
-      rant: "#F44336",
-      release: "#64B5F6",
-      confess: "#BA68C8",
-      reflect: "#81C784",
-      celebrate: "#FFD54F"
-    };
+  function showModal(message, mood) {
+    const modal = document.getElementById("modal");
+    const modalContent = document.getElementById("modalContent");
+    document.getElementById("modalMessage").innerText = message;
+    modalContent.style.background = moodColors[mood] || "white";
+    modal.style.display = "flex";
+  }
 
-    const width = document.getElementById("wordCloud").clientWidth;
-    const height = document.getElementById("wordCloud").clientHeight;
+  // Add tooltip for hover hint
+  const tooltip = d3.select("body")
+    .append("div")
+    .style("position", "absolute")
+    .style("background", "#fff")
+    .style("color", "#333")
+    .style("padding", "6px 10px")
+    .style("border-radius", "6px")
+    .style("font-size", "0.9em")
+    .style("box-shadow", "0 2px 5px rgba(0,0,0,0.15)")
+    .style("display", "none")
+    .text("Click to read this post");
 
-    const svg = d3.select("#wordCloud")
-      .append("svg")
-      .attr("width", width)
-      .attr("height", height)
-      .append("g")
-      .attr("transform", `translate(${width / 2},${height / 2})`);
-
-    function closeModal() {
-      document.getElementById("modal").style.display = "none";
-    }
-
-    function showModal(message, mood) {
-      const modal = document.getElementById("modal");
-      const modalContent = document.getElementById("modalContent");
-      document.getElementById("modalMessage").innerText = message;
-      modalContent.style.background = moodColors[mood] || "white";
-      modal.style.display = "flex";
-    }
-
-    // Load CSV data
-    d3.csv(csvUrl).then(data => {
-      const words = data.map(d => ({
-        text: d.Title || "(untitled)",
+  // Load CSV data
+  d3.csv(csvUrl).then(data => {
+    const words = data
+      .filter(d => d.Title && d.Title.trim() !== "") // filter out untitled
+      .map(d => ({
+        text: d.Title,
         size: 10 + Math.random() * 60,
         message: d.Message,
         mood: d.Mood ? d.Mood.toLowerCase() : "reflect"
       }));
 
-      d3.layout.cloud()
-        .size([width, height])
-        .words(words)
-        .padding(5)
-        .rotate(() => (~~(Math.random() * 2) * 90))
-        .font("Impact")
-        .fontSize(d => d.size)
-        .on("end", draw)
-        .start();
+    d3.layout.cloud()
+      .size([width, height])
+      .words(words)
+      .padding(5)
+      .rotate(() => (~~(Math.random() * 2) * 90))
+      .font("Impact")
+      .fontSize(d => d.size)
+      .on("end", draw)
+      .start();
 
-      function draw(words) {
-        svg.selectAll("text")
-          .data(words)
-          .enter().append("text")
-          .style("font-size", d => d.size + "px")
-          .style("font-family", "Impact")
-          .style("fill", d => moodColors[d.mood] || "#888")
-          .attr("text-anchor", "middle")
-          .attr("transform", d => `translate(${[d.x, d.y]})rotate(${d.rotate})`)
-          .text(d => d.text)
-          .on("click", (event, d) => showModal(d.message, d.mood));
-      }
-    }).catch(err => {
-      console.error("Error loading CSV:", err);
-    });
-  </script>
-
-</body>
-</html>
+    function draw(words) {
+      svg.selectAll("text")
+        .data(words)
+        .enter()
+        .append("text")
+        .style("font-size", d => d.size + "px")
+        .style("font-family", "Impact")
+        .style("fill", d => moodColors[d.mood] || "#888")
+        .attr("text-anchor", "middle")
+        .attr("transform", d => `translate(${[d.x, d.y]})rotate(${d.rotate})`)
+        .text(d => d.text)
+        .style("cursor", "pointer")
+        .on("mouseover", function (event, d) {
+          d3.select(this)
+            .transition()
+            .duration(200)
+            .style("font-size", (d.size * 1.2) + "px")
+            .style("fill", "#000");
+          tooltip.style("display", "block");
+        })
+        .on("mousemove", event => {
+          tooltip
+            .style("top", (event.pageY - 40) + "px")
+            .style("left", (event.pageX + 10) + "px");
+        })
+        .on("mouseout", function (event, d) {
+          d3.select(this)
+            .transition()
+            .duration(200)
+            .style("font-size", d.size + "px")
+            .style("fill", moodColors[d.mood] || "#888");
+          tooltip.style("display", "none");
+        })
+        .on("click", (event, d) => showModal(d.message, d.mood));
+    }
+  }).catch(err => {
+    console.error("Error loading CSV:", err);
+  });
+</script>
