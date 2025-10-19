@@ -1,107 +1,400 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Fessions — Word Cloud</title>
+
+  <style>
+    :root{
+      --bg: #FAFAFA;
+      --card: #FFFFFF;
+      --text: #222;
+      --accent: #06D6A0;
+    }
+    html,body{height:100%;margin:0;font-family:Inter,Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text);}
+    .wrap{max-width:1200px;margin:18px auto;padding:18px;}
+    h1{margin:0 0 6px;font-size:20px}
+    #wordCloud{width:100%;height:68vh;border-radius:8px;background:var(--card);box-shadow:0 8px 20px rgba(0,0,0,0.06);position:relative;overflow:hidden}
+    .controls{margin-top:12px;display:flex;gap:8px;align-items:center}
+    button{background:var(--accent);color:white;border:0;padding:8px 12px;border-radius:8px;cursor:pointer;font-weight:600}
+    button.secondary{background:#fff;color:var(--accent);border:1px solid #e6e6e6}
+    footer{margin-top:14px;color:#666;font-size:13px;text-align:center}
+
+    /* Tooltip */
+    .wc-tooltip{
+      position: absolute;
+      pointer-events: none;
+      background: #fff;
+      color: #222;
+      padding: 6px 10px;
+      border-radius: 6px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+      font-size: 13px;
+      display:none;
+      z-index:1000;
+    }
+
+    /* Modal */
+    .modal {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+      background: rgba(0,0,0,0.55);
+    }
+    .modal-card {
+      width: min(820px, 92%);
+      max-height: 80vh;
+      overflow:auto;
+      background: white;
+      border-radius: 12px;
+      padding: 18px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+      transition: transform .25s ease;
+    }
+    .meta { font-size:12px;color:#333;margin-bottom:8px }
+    .post-body { white-space:pre-wrap; font-size:16px; color:#111; }
+    .modal-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:12px; }
+    .btn-ghost { background:transparent;border:1px solid rgba(0,0,0,0.08); padding:8px 12px;border-radius:8px;cursor:pointer }
+  </style>
+
+  <!-- Required libraries (load BEFORE custom script) -->
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3-cloud/1.2.5/d3.layout.cloud.min.js"></script>
+</head>
+<body>
+  <div class="wrap">
+    <header style="display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <h1>Fessions — Reflect (Word Cloud)</h1>
+        <div style="color:#666">Click a word to read one anonymous post that used it.</div>
+      </div>
+      <div style="text-align:right;color:#666;font-size:13px">Ad / Support • Donate</div>
+    </header>
+
+    <div id="wordCloud" aria-hidden="false">
+      <div class="wc-tooltip" id="wcTooltip">Click to read</div>
+    </div>
+
+    <div class="controls">
+      <button id="randomWord" class="secondary">Random Word</button>
+      <button id="refreshCloud" class="secondary">Refresh</button>
+      <div style="flex:1"></div>
+      <div style="font-size:13px;color:#666">Auto refresh off (manual)</div>
+    </div>
+
+    <footer>All posts anonymous • Some posts may be moderated.</footer>
+  </div>
+
+  <!-- Modal for post peek -->
+  <div id="modal" class="modal" role="dialog" aria-hidden="true">
+    <div id="modalCard" class="modal-card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div><strong id="modalWordTitle">Word</strong></div>
+        <div style="font-size:12px;color:#444" id="modalMoodLabel"></div>
+      </div>
+
+      <div id="modalContent" style="margin-top:10px">
+        <div class="meta" id="modalMeta"></div>
+        <div class="post-body" id="modalBody"></div>
+      </div>
+
+      <div class="modal-actions">
+        <button id="prevPost" class="btn-ghost">Prev</button>
+        <button id="nextPost" class="btn-ghost">Next</button>
+        <button id="closeModal" class="btn-ghost">Close</button>
+      </div>
+    </div>
+  </div>
+
 <script>
-  const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSrNxHSKHvTW7SN6dBA0aRL2ekckHnWC2m4qp7WoOhrecea5E2l5crGJGrJxEBjRPTeSOMLSReNNmrv/pub?gid=413092187&single=true&output=csv"; // <-- Replace with your Google Sheet CSV URL
+/* -------------- CONFIG -------------- */
+const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSrNxHSKHvTW7SN6dBA0aRL2ekckHnWC2m4qp7WoOhrecea5E2l5crGJGrJxEBjRPTeSOMLSReNNmrv/pub?gid=413092187&single=true&output=csv"; // REPLACE with your published CSV link (pub?output=csv)
+const PUBLISHED_FIELD = "Published"; // use "OK" to include only moderated posts; set to null to include all
+const MESSAGE_FIELD = "Message"; // column header exactly as in sheet
+const MOOD_FIELD = "Mood";
+const TITLE_FIELD = "Title";
+const TIMESTAMP_FIELD = "Timestamp";
 
-  const moodColors = {
-    vent: "#E57373",
-    rant: "#F44336",
-    release: "#64B5F6",
-    confess: "#BA68C8",
-    reflect: "#81C784",
-    celebrate: "#FFD54F"
-  };
+const STOPWORDS = new Set([
+  "the","and","for","that","this","with","have","just","about","your","you","are","but","not","was","they",
+  "from","what","when","like","their","them","it's","ive","i'm","i","me","my","we","our","or","a","an","in","on",
+  "of","to","be","as","at","so","if","by","is","it","has","had","do","does","did","will","would","can","could",
+  "rt","u","im","yeah","oh"
+]);
 
-  const width = document.getElementById("wordCloud").clientWidth;
-  const height = document.getElementById("wordCloud").clientHeight;
+const moodColors = {
+  vent: "#E57373",    // red
+  rant: "#F44336",    // orange
+  release: "#64B5F6", // blue
+  confess: "#BA68C8", // purple
+  reflect: "#81C784", // green
+  celebrate: "#FFD54F", // yellow
+  default: "#888"
+};
 
-  const svg = d3.select("#wordCloud")
-    .append("svg")
-    .attr("width", width)
-    .attr("height", height)
-    .append("g")
-    .attr("transform", `translate(${width / 2},${height / 2})`);
+/* -------------- STATE -------------- */
+let posts = [];       // array of objects {Timestamp, Mood, Title, Message}
+let wordFreq = {};    // map word => count
+let wordList = [];    // [{text,size}]
+let currentWord = null;
+let currentMatches = [];
+let currentIndex = 0;
 
-  function closeModal() {
-    document.getElementById("modal").style.display = "none";
-  }
+/* -------------- DOM refs -------------- */
+const container = document.getElementById("wordCloud");
+const tooltip = document.getElementById("wcTooltip");
+const modal = document.getElementById("modal");
+const modalCard = document.getElementById("modalCard");
+const modalWordTitle = document.getElementById("modalWordTitle");
+const modalMoodLabel = document.getElementById("modalMoodLabel");
+const modalMeta = document.getElementById("modalMeta");
+const modalBody = document.getElementById("modalBody");
+const closeModalBtn = document.getElementById("closeModal");
+const nextPostBtn = document.getElementById("nextPost");
+const prevPostBtn = document.getElementById("prevPost");
+const randomWordBtn = document.getElementById("randomWord");
+const refreshCloudBtn = document.getElementById("refreshCloud");
 
-  function showModal(message, mood) {
-    const modal = document.getElementById("modal");
-    const modalContent = document.getElementById("modalContent");
-    document.getElementById("modalMessage").innerText = message;
-    modalContent.style.background = moodColors[mood] || "white";
-    modal.style.display = "flex";
-  }
+/* -------------- UTILITIES -------------- */
+function sanitizeWord(w){
+  return w.toLowerCase().replace(/[^a-z0-9']/g,'').trim();
+}
+function tokenize(text){
+  if(!text) return [];
+  return text.split(/\s+/).map(sanitizeWord).filter(w => w.length>=3 && !STOPWORDS.has(w));
+}
+function escapeHtml(str){
+  return String(str || '').replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[c]);
+}
 
-  // Add tooltip for hover hint
-  const tooltip = d3.select("body")
-    .append("div")
-    .style("position", "absolute")
-    .style("background", "#fff")
-    .style("color", "#333")
-    .style("padding", "6px 10px")
-    .style("border-radius", "6px")
-    .style("font-size", "0.9em")
-    .style("box-shadow", "0 2px 5px rgba(0,0,0,0.15)")
-    .style("display", "none")
-    .text("Click to read this post");
+/* -------------- DATA LOAD -------------- */
+async function loadData(){
+  try{
+    const res = await fetch(CSV_URL);
+    if(!res.ok) throw new Error("CSV fetch failed: "+res.status);
+    const text = await res.text();
 
-  // Load CSV data
-  d3.csv(csvUrl).then(data => {
-    const words = data
-      .filter(d => d.Title && d.Title.trim() !== "") // filter out untitled
-      .map(d => ({
-        text: d.Title,
-        size: 10 + Math.random() * 60,
-        message: d.Message,
-        mood: d.Mood ? d.Mood.toLowerCase() : "reflect"
+    // Parse CSV lines robustly by splitting via d3.csv parsing:
+    const parsed = d3.csvParse(text);
+
+    // Filter published if needed, and map canonical fields
+    posts = parsed
+      .filter(row => {
+        if(PUBLISHED_FIELD && (row[PUBLISHED_FIELD] || "").toLowerCase() !== "ok") return false;
+        // ensure message exists
+        return (row[MESSAGE_FIELD] || "").trim().length > 0;
+      })
+      .map(row => ({
+        Timestamp: row[TIMESTAMP_FIELD] || "",
+        Mood: (row[MOOD_FIELD] || "").toLowerCase(),
+        Title: row[TITLE_FIELD] || "",
+        Message: row[MESSAGE_FIELD] || ""
       }));
 
-    d3.layout.cloud()
-      .size([width, height])
-      .words(words)
-      .padding(5)
-      .rotate(() => (~~(Math.random() * 2) * 90))
-      .font("Impact")
-      .fontSize(d => d.size)
-      .on("end", draw)
-      .start();
+    buildWordFreq();
+  }catch(e){
+    console.error("loadData()", e);
+    container.innerHTML = "<div style='padding:30px;color:#777;text-align:center'>Failed to load data.</div>";
+  }
+}
 
-    function draw(words) {
-      svg.selectAll("text")
-        .data(words)
-        .enter()
-        .append("text")
-        .style("font-size", d => d.size + "px")
-        .style("font-family", "Impact")
-        .style("fill", d => moodColors[d.mood] || "#888")
-        .attr("text-anchor", "middle")
-        .attr("transform", d => `translate(${[d.x, d.y]})rotate(${d.rotate})`)
-        .text(d => d.text)
-        .style("cursor", "pointer")
-        .on("mouseover", function (event, d) {
-          d3.select(this)
-            .transition()
-            .duration(200)
-            .style("font-size", (d.size * 1.2) + "px")
-            .style("fill", "#000");
-          tooltip.style("display", "block");
-        })
-        .on("mousemove", event => {
-          tooltip
-            .style("top", (event.pageY - 40) + "px")
-            .style("left", (event.pageX + 10) + "px");
-        })
-        .on("mouseout", function (event, d) {
-          d3.select(this)
-            .transition()
-            .duration(200)
-            .style("font-size", d.size + "px")
-            .style("fill", moodColors[d.mood] || "#888");
-          tooltip.style("display", "none");
-        })
-        .on("click", (event, d) => showModal(d.message, d.mood));
-    }
-  }).catch(err => {
-    console.error("Error loading CSV:", err);
+/* -------------- WORD FREQUENCY + RENDER -------------- */
+function buildWordFreq(){
+  wordFreq = {};
+  posts.forEach(p=>{
+    const words = tokenize(p.Message);
+    // use unique words per post? We count each occurrence to weight frequency
+    words.forEach(w => {
+      wordFreq[w] = (wordFreq[w]||0) + 1;
+    });
   });
+
+  wordList = Object.keys(wordFreq).map(k=>({text:k, size: wordFreq[k]}))
+    .sort((a,b)=>b.size - a.size)
+    .slice(0, 120);
+
+  // normalize sizes -> font sizes (12-80)
+  const max = wordList.length ? wordList[0].size : 1;
+  wordList = wordList.map(w=>({
+    text: w.text,
+    size: 12 + Math.round((w.size / max) * 68)
+  }));
+
+  renderCloud();
+}
+
+/* clear previous svg */
+function clearCloud(){
+  // remove any existing svg
+  const prev = container.querySelector("svg");
+  if(prev) prev.remove();
+}
+
+/* -------------- RENDER USING d3-cloud -------------- */
+function renderCloud(){
+  clearCloud();
+  if(wordList.length === 0){
+    container.innerHTML = "<div style='padding:40px;color:#777;text-align:center'>No public posts available yet.</div>";
+    return;
+  }
+
+  const width = container.clientWidth;
+  const height = container.clientHeight;
+
+  const layout = d3.layout.cloud()
+    .size([width, height])
+    .words(wordList.map(w=>({text:w.text, size:w.size})))
+    .padding(5)
+    .rotate(()=> (Math.random() > 0.8 ? 90 : 0) )
+    .font("Impact")
+    .fontSize(d=>d.size)
+    .on("end", draw);
+
+  layout.start();
+
+  function draw(words){
+    const svg = d3.select(container)
+      .append("svg")
+      .attr("width", width)
+      .attr("height", height)
+      .append("g")
+      .attr("transform", `translate(${width/2},${height/2})`);
+
+    svg.selectAll("text")
+      .data(words)
+      .enter()
+      .append("text")
+      .attr("text-anchor","middle")
+      .attr("transform", d=>`translate(${d.x},${d.y})rotate(${d.rotate})`)
+      .style("font-family","Impact")
+      .style("fill", d => "#333")
+      .style("cursor","pointer")
+      .style("font-size", d=> d.size + "px")
+      .text(d => d.text)
+      .on("mouseover", function(event,d){
+        d3.select(this)
+          .raise()
+          .transition().duration(160)
+          .style("font-size", (d.size * 1.22) + "px")
+          .style("fill","#000");
+        // show tooltip
+        tooltip.style.display = "block";
+        tooltip.textContent = "Click to read";
+      })
+      .on("mousemove", function(event){
+        tooltip.style.left = (event.pageX + 12) + "px";
+        tooltip.style.top  = (event.pageY - 28) + "px";
+      })
+      .on("mouseout", function(event,d){
+        d3.select(this)
+          .transition().duration(160)
+          .style("font-size", d.size + "px")
+          .style("fill","#333");
+        tooltip.style.display = "none";
+      })
+      .on("click", function(event,d){
+        openPeek(d.text);
+      });
+  }
+}
+
+/* -------------- PEEK / MODAL -------------- */
+function openPeek(word){
+  currentWord = word;
+  modalWordTitle.textContent = `"${word}"`;
+  // find posts containing word (simple includes on tokenized lower-case)
+  currentMatches = posts.filter(p => {
+    const tokens = tokenize(p.Message);
+    return tokens.includes(word.toLowerCase());
+  });
+
+  // fallback: substring match
+  if(currentMatches.length === 0){
+    currentMatches = posts.filter(p => (p.Message || "").toLowerCase().includes(word.toLowerCase()));
+  }
+
+  currentIndex = 0;
+  renderPeek();
+  showModal();
+}
+
+function renderPeek(){
+  if(!currentMatches || currentMatches.length === 0){
+    modalMeta.textContent = "";
+    modalBody.textContent = "No posts found for this word.";
+    modalMoodLabel.textContent = "";
+    return;
+  }
+  const p = currentMatches[currentIndex];
+  modalMoodLabel.textContent = p.Mood ? p.Mood.toUpperCase() : "";
+  modalMeta.textContent = (p.Timestamp ? p.Timestamp + " • " : "") + (p.Title ? p.Title : "");
+  modalBody.innerHTML = escapeHtml(p.Message);
+  // set modal card background tint from mood
+  const moodColor = moodColors[p.Mood] || moodColors.default;
+  modalCard.style.background = "#ffffff";
+  // apply subtle top border or glow using box-shadow colored
+  modalCard.style.boxShadow = `0 12px 30px ${hexToRgba(moodColor,0.18)}`;
+  modalCard.style.borderTop = `6px solid ${moodColor}`;
+}
+
+function showModal(){
+  modal.style.display = "flex";
+  modal.setAttribute("aria-hidden","false");
+}
+
+function closeModal(){
+  modal.style.display = "none";
+  modal.setAttribute("aria-hidden","true");
+}
+
+function nextPost(){
+  if(!currentMatches || currentMatches.length===0) return;
+  currentIndex = (currentIndex + 1) % currentMatches.length;
+  renderPeek();
+}
+function prevPost(){
+  if(!currentMatches || currentMatches.length===0) return;
+  currentIndex = (currentIndex - 1 + currentMatches.length) % currentMatches.length;
+  renderPeek();
+}
+
+/* -------------- helpers -------------- */
+function hexToRgba(hex,alpha){
+  if(!hex) return `rgba(0,0,0,${alpha})`;
+  const h = hex.replace('#','');
+  const bigint = parseInt(h,16);
+  const r = (bigint >> 16) & 255;
+  const g = (bigint >> 8) & 255;
+  const b = bigint & 255;
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+/* -------------- UI hooks -------------- */
+closeModalBtn.addEventListener('click', closeModal);
+nextPostBtn.addEventListener('click', nextPost);
+prevPostBtn.addEventListener('click', prevPost);
+
+randomWordBtn.addEventListener('click', ()=>{
+  if(wordList.length===0) return;
+  const w = wordList[Math.floor(Math.random()*wordList.length)].text;
+  openPeek(w);
+});
+
+refreshCloudBtn.addEventListener('click', ()=> {
+  loadData();
+});
+
+/* -------------- start -------------- */
+loadData();
+
+/* allow ESC to close */
+document.addEventListener('keydown', (e)=>{
+  if(e.key === 'Escape') closeModal();
+});
 </script>
+</body>
+</html>
